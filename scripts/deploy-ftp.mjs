@@ -5,11 +5,11 @@ import { pathToFileURL } from 'node:url';
 
 const backendFiles = new Set(['bootstrap.php', 'colors.php', 'config.example.php', 'create_user.php', 'schema.sql', 'migrate_colors.sql']);
 
-export function deploymentTargets(directory) {
-  if (typeof directory !== 'string' || !directory.startsWith('/') || /[\\\r\n\0]/.test(directory) || directory.split('/').includes('..')) {
-    throw new Error('FTP_SERVER_DIR must be an absolute FTP path to httpdocs without parent traversal.');
+export function deploymentTargets(directory, home = '/') {
+  if (typeof directory !== 'string' || directory === '' || /[\\\r\n\0]/.test(directory) || directory.split('/').includes('..')) {
+    throw new Error('FTP_SERVER_DIR must be a path to httpdocs without parent traversal.');
   }
-  const web = posix.normalize(directory).replace(/\/$/, '');
+  const web = posix.resolve(home, directory).replace(/\/$/, '');
   if (posix.basename(web) !== 'httpdocs') throw new Error('FTP_SERVER_DIR must point directly to httpdocs, not the domain directory.');
   return { web, backend: posix.join(posix.dirname(web), 'backend') };
 }
@@ -25,8 +25,8 @@ export function ftpConnection(environment) {
   return { host: server.hostname, port: Number(server.port || 21), user: environment.FTP_USERNAME, password: environment.FTP_PASSWORD, secure: server.port === '990' ? 'implicit' : true };
 }
 
-export async function deploymentPlan(root, directory) {
-  const targets = deploymentTargets(directory);
+export async function deploymentPlan(root, directory, home = '/') {
+  const targets = deploymentTargets(directory, home);
   const plan = [];
   async function collect(local, remote, group, relative = '') {
     const entries = await readdir(local, { withFileTypes: true });
@@ -68,10 +68,19 @@ async function deploy() {
   }
   const client = new Client(60000);
   client.ftp.verbose = false;
+  let phase = 'connection';
   try {
     await client.access(connection);
+    if (!process.env.FTP_SERVER_DIR.startsWith('/')) {
+      plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR, await client.pwd());
+    }
+    phase = 'upload';
     await uploadPlan(client, plan);
     console.log(`FTPS deployment completed: ${plan.length} files uploaded. No remote files deleted.`);
+  } catch (error) {
+    const code = error && /^[A-Z0-9_]+$/.test(String(error.code)) ? String(error.code) : 'unknown';
+    console.error(`FTPS ${phase} failed (code: ${code}). Check TLS/FTP credentials and write access to httpdocs and its sibling backend.`);
+    process.exitCode = 1;
   } finally {
     client.close();
   }

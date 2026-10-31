@@ -88,9 +88,9 @@ Use the four repository secrets in `AndyNope/maki`:
 | `FTP_SERVER` | FTP hostname, optionally with a port; do not embed credentials or a path |
 | `FTP_USERNAME` | FTP user with write access to both sibling directories |
 | `FTP_PASSWORD` | That user's password |
-| `FTP_SERVER_DIR` | Absolute FTP-visible path directly to `httpdocs`, e.g. `/maki.andynope.com/httpdocs/` |
+| `FTP_SERVER_DIR` | FTP-visible path directly to `httpdocs`, e.g. `/maki.andynope.com/httpdocs/` or `maki.andynope.com/httpdocs/` |
 
-The FTP-visible path depends on the account's home directory. If the account starts inside the domain directory, use `/httpdocs/` instead. Do not use the full Linux server path unless that is also the path visible after FTP login. The deployment derives the sibling backend target from this setting, for example `/maki.andynope.com/backend/`. It uploads individual files without deleting remote files; existing `config.local.php`, databases and uploaded photos are not included and are preserved. Old web bundles are not cleaned up automatically.
+The FTP-visible path depends on the account's home directory. Absolute paths start at the FTP-visible root; relative paths are resolved against the initial directory reported after login. If the account starts inside the domain directory, use `./httpdocs/`. Do not use the full Linux server path unless that is also the path visible after FTP login. The deployment derives the sibling backend target from this setting, for example `/maki.andynope.com/backend/`. Parent traversal is rejected. It uploads individual files without deleting remote files; existing `config.local.php`, databases and uploaded photos are not included and are preserved. Old web bundles are not cleaned up automatically.
 
 First install the database and private `backend/config.local.php` using the Plesk steps above. FTP alone cannot create a database, run migrations or provision users. Schema and migration files are uploaded but never executed automatically on production. The final live check requires the website to respond successfully and unauthenticated `/api/items.php` to return 401. That 401 validates configuration loading, not the DB credentials or a full authenticated upload. A 503 fails the workflow and means server setup still needs completion.
 

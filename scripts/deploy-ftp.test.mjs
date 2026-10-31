@@ -9,7 +9,9 @@ import { deploymentTargets, ftpConnection, deploymentPlan, uploadPlan } from './
 test('httpdocs and backend are siblings and unsafe target paths fail', () => {
   assert.deepEqual(deploymentTargets('/maki.andynope.com/httpdocs/'), { web: '/maki.andynope.com/httpdocs', backend: '/maki.andynope.com/backend' });
   assert.deepEqual(deploymentTargets('/httpdocs/'), { web: '/httpdocs', backend: '/backend' });
-  for (const path of ['/', '/maki.andynope.com/', 'httpdocs', '/maki/../httpdocs', '/maki\\httpdocs']) assert.throws(() => deploymentTargets(path));
+  assert.deepEqual(deploymentTargets('maki.andynope.com/httpdocs/', '/account'), { web: '/account/maki.andynope.com/httpdocs', backend: '/account/maki.andynope.com/backend' });
+  assert.deepEqual(deploymentTargets('./httpdocs/', '/account/domain'), { web: '/account/domain/httpdocs', backend: '/account/domain/backend' });
+  for (const path of ['', '/', '/maki.andynope.com/', '/maki/../httpdocs', '/maki\\httpdocs']) assert.throws(() => deploymentTargets(path));
 });
 
 test('FTP uses certificate-verified TLS and credentials stay out of server URLs', () => {
