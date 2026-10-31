@@ -68,6 +68,15 @@ export async function inspectFTPHome(client) {
   return result;
 }
 
+export function validateDomainTarget(directory, home, entries) {
+  const targets = deploymentTargets(directory, home);
+  if (targets.web === posix.join(home, 'httpdocs') && entries.some(entry => entry.name === 'maki.andynope.com' && entry.isDirectory)) {
+    const error = new Error('The account webroot is not the target domain webroot.');
+    error.code = 'FTP_TARGET_DOMAIN_MISMATCH';
+    throw error;
+  }
+}
+
 async function deploy() {
   const checkOnly = process.env.FTP_CHECK_ONLY === '1';
   let connection;
@@ -90,8 +99,10 @@ async function deploy() {
       console.log('Read-only FTP layout check:', JSON.stringify(await inspectFTPHome(client)));
       return;
     }
+    const home = await client.pwd();
+    validateDomainTarget(process.env.FTP_SERVER_DIR, home, await client.list());
     if (!process.env.FTP_SERVER_DIR.startsWith('/')) {
-      plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR, await client.pwd());
+      plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR, home);
     }
     phase = 'upload';
     await uploadPlan(client, plan);

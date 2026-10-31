@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { deploymentTargets, ftpConnection, deploymentPlan, uploadPlan, inspectFTPHome } from './deploy-ftp.mjs';
+import { deploymentTargets, ftpConnection, deploymentPlan, uploadPlan, inspectFTPHome, validateDomainTarget } from './deploy-ftp.mjs';
 
 test('httpdocs and backend are siblings and unsafe target paths fail', () => {
   assert.deepEqual(deploymentTargets('/maki.andynope.com/httpdocs/'), { web: '/maki.andynope.com/httpdocs', backend: '/maki.andynope.com/backend' });
@@ -38,6 +38,13 @@ test('read-only FTP inspection detects a domain below the account root', async (
   };
   assert.deepEqual(await inspectFTPHome(client), { homeContainsDomain: true, homeContainsHttpdocs: true, homeContainsBackend: false, domainContainsHttpdocs: true, domainContainsBackend: true });
   assert.deepEqual(operations, ['list', 'cd', 'list']);
+});
+
+test('the account default webroot is rejected when the domain has its own folder', () => {
+  const entries = [{ name: 'maki.andynope.com', isDirectory: true }, { name: 'httpdocs', isDirectory: true }];
+  assert.throws(() => validateDomainTarget('./httpdocs/', '/', entries), { code: 'FTP_TARGET_DOMAIN_MISMATCH' });
+  assert.doesNotThrow(() => validateDomainTarget('maki.andynope.com/httpdocs/', '/', entries));
+  assert.doesNotThrow(() => validateDomainTarget('./httpdocs/', '/maki.andynope.com', [{ name: 'httpdocs', isDirectory: true }]));
 });
 
 test('upload plan puts backend first, preserves runtime files and never deletes remotely', async () => {
