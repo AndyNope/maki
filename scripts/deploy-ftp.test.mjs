@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { deploymentTargets, ftpConnection, deploymentPlan, uploadPlan } from './deploy-ftp.mjs';
+import { deploymentTargets, ftpConnection, deploymentPlan, uploadPlan, inspectFTPHome } from './deploy-ftp.mjs';
 
 test('httpdocs and backend are siblings and unsafe target paths fail', () => {
   assert.deepEqual(deploymentTargets('/maki.andynope.com/httpdocs/'), { web: '/maki.andynope.com/httpdocs', backend: '/maki.andynope.com/backend' });
@@ -27,6 +27,17 @@ test('CLI reports invalid target without exposing credentials or connecting', ()
   assert.equal(result.status, 1);
   assert.match(result.stderr, /FTP_SERVER_DIR must point directly to httpdocs/);
   for (const value of ['fixture-secret', 'fixture-user', 'ftp.example.com', '/wrong-target/']) assert.ok(!result.stderr.includes(value));
+});
+
+test('read-only FTP inspection detects a domain below the account root', async () => {
+  const operations = [];
+  let directory = 'home';
+  const client = {
+    list: async () => { operations.push('list'); return (directory === 'home' ? ['httpdocs', 'maki.andynope.com'] : ['httpdocs', 'backend']).map(name => ({ name, isDirectory: true })); },
+    cd: async name => { operations.push('cd'); directory = name; },
+  };
+  assert.deepEqual(await inspectFTPHome(client), { homeContainsDomain: true, homeContainsHttpdocs: true, homeContainsBackend: false, domainContainsHttpdocs: true, domainContainsBackend: true });
+  assert.deepEqual(operations, ['list', 'cd', 'list']);
 });
 
 test('upload plan puts backend first, preserves runtime files and never deletes remotely', async () => {

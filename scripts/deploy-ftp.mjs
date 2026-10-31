@@ -55,12 +55,27 @@ export async function uploadPlan(client, plan) {
   }
 }
 
+export async function inspectFTPHome(client) {
+  const entries = await client.list();
+  const directoryExists = name => entries.some(entry => entry.name === name && entry.isDirectory);
+  const result = { homeContainsDomain: directoryExists('maki.andynope.com'), homeContainsHttpdocs: directoryExists('httpdocs'), homeContainsBackend: directoryExists('backend') };
+  if (result.homeContainsDomain) {
+    await client.cd('maki.andynope.com');
+    const domainEntries = await client.list();
+    result.domainContainsHttpdocs = domainEntries.some(entry => entry.name === 'httpdocs' && entry.isDirectory);
+    result.domainContainsBackend = domainEntries.some(entry => entry.name === 'backend' && entry.isDirectory);
+  }
+  return result;
+}
+
 async function deploy() {
+  const checkOnly = process.env.FTP_CHECK_ONLY === '1';
   let connection;
   let plan;
   try {
     connection = ftpConnection(process.env);
-    plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR);
+    deploymentTargets(process.env.FTP_SERVER_DIR);
+    if (!checkOnly) plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR);
   } catch (error) {
     console.error(`Deployment configuration check failed: ${error instanceof Error ? error.message : 'Invalid deployment configuration.'}`);
     process.exitCode = 1;
@@ -71,6 +86,10 @@ async function deploy() {
   let phase = 'connection';
   try {
     await client.access(connection);
+    if (checkOnly) {
+      console.log('Read-only FTP layout check:', JSON.stringify(await inspectFTPHome(client)));
+      return;
+    }
     if (!process.env.FTP_SERVER_DIR.startsWith('/')) {
       plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR, await client.pwd());
     }
