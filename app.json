@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Maki Style",
+    "slug": "maki-style",
+    "scheme": "makistyle",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.makistyle.app"
+    },
+    "android": {
+      "package": "com.makistyle.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Fotografiere Kleidungsstücke für deinen Kleiderschrank.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Wähle Fotos für deinen Kleiderschrank.",
+          "cameraPermission": "Fotografiere Kleidungsstücke für deinen Kleiderschrank.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-status-bar"
+    ]
+  }
+}

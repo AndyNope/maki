@@ -1,0 +1,77 @@
+name: Test and Deploy to Plesk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plesk-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci-test-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      CI: '1'
+      EXPO_PUBLIC_API_URL: /api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install PHP test dependencies
+        run: |
+          sudo -n apt-get update
+          sudo -n apt-get install -y php-cli php-gd php-mysql php-mbstring mariadb-client zip
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Test frontend and deployment paths
+        run: |
+          npm run typecheck
+          node --test scripts/deploy-ftp.test.mjs
+      - name: Test PHP and MariaDB
+        env:
+          MAKI_TEST_DB_HOST: 127.0.0.1
+          MAKI_TEST_DB_USER: root
+          MAKI_TEST_DB_PASSWORD: ci-test-only
+        run: |
+          while IFS= read -r -d '' file; do php -l "$file"; done < <(find backend -name '*.php' -print0)
+          php backend/tests/colors.php
+          node backend/tests/api.mjs
+      - name: Build production export
+        run: npm run export:plesk
+      - name: Deploy backend then webroot over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: node scripts/deploy-ftp.mjs
+      - name: Verify public website and backend configuration
+        run: |
+          curl --fail --silent --show-error --retry 2 --max-time 30 --output /dev/null 'https://maki.andynope.com/index.html'
+          code=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' 'https://maki.andynope.com/api/items.php')
+          if [ "$code" != '401' ]; then
+            echo "::error::API not ready (HTTP $code). Install backend/config.local.php and complete the database/account setup in Plesk."
+            exit 1
+          fi

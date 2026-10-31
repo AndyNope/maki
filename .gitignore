@@ -1,0 +1,14 @@
+node_modules/
+.DS_Store
+.expo/
+dist/
+release/
+.env
+.env.*
+!.env.example
+backend/config.local.php
+**/config.local.php
+backend/storage/
+backend/public/uploads/*
+!backend/public/uploads/.htaccess
+*.log
