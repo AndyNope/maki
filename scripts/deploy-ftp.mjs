@@ -56,8 +56,16 @@ export async function uploadPlan(client, plan) {
 }
 
 async function deploy() {
-  const connection = ftpConnection(process.env);
-  const plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR);
+  let connection;
+  let plan;
+  try {
+    connection = ftpConnection(process.env);
+    plan = await deploymentPlan(resolve(import.meta.dirname, '../release/plesk'), process.env.FTP_SERVER_DIR);
+  } catch (error) {
+    console.error(`Deployment configuration check failed: ${error instanceof Error ? error.message : 'Invalid deployment configuration.'}`);
+    process.exitCode = 1;
+    return;
+  }
   const client = new Client(60000);
   client.ftp.verbose = false;
   try {

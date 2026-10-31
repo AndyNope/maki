@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { deploymentTargets, ftpConnection, deploymentPlan, uploadPlan } from './deploy-ftp.mjs';
 
 test('httpdocs and backend are siblings and unsafe target paths fail', () => {
@@ -17,6 +18,13 @@ test('FTP uses certificate-verified TLS and credentials stay out of server URLs'
   assert.equal(ftpConnection({ ...environment, FTP_SERVER: 'ftps://ftp.example.com:990' }).secure, 'implicit');
   assert.throws(() => ftpConnection({ ...environment, FTP_PASSWORD: '' }));
   assert.throws(() => ftpConnection({ ...environment, FTP_SERVER: 'ftps://user:password@ftp.example.com' }));
+});
+
+test('CLI reports invalid target without exposing credentials or connecting', () => {
+  const result = spawnSync(process.execPath, [resolve(import.meta.dirname, 'deploy-ftp.mjs')], { encoding: 'utf8', env: { ...process.env, FTP_SERVER: 'ftp.example.com', FTP_USERNAME: 'fixture-user', FTP_PASSWORD: 'fixture-secret', FTP_SERVER_DIR: '/wrong-target/' } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /FTP_SERVER_DIR must point directly to httpdocs/);
+  for (const value of ['fixture-secret', 'fixture-user', 'ftp.example.com', '/wrong-target/']) assert.ok(!result.stderr.includes(value));
 });
 
 test('upload plan puts backend first, preserves runtime files and never deletes remotely', async () => {
